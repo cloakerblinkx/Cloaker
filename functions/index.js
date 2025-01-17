@@ -1,51 +1,85 @@
 const functions = require("firebase-functions");
 const axios = require("axios");
 
-const VERCEL_API_TOKEN = "brQINw77RRmKKGgKjwI4jjKi"; 
-const VERCEL_PROJECT_ID = "prj_axRVh19ZXb6J2V1cTxIRHpSGSF0E"; 
-const BASE_DOMAIN = "cloaker-beta.vercel.app"; 
+const headers = {
+  Authorization: "Bearer h3zdc76m51UIDP41HmfQia3j",
+  "Content-Type": "application/json",
+};
 
-exports.deployToVercel = functions.https.onRequest(async (req, res) => {
-  const customSubdomain = `deploy-${Date.now()}`; 
-  const customDomain = `${customSubdomain}.${BASE_DOMAIN}`;
+ 
+const VERCEL_BASE_URL = "https://api.vercel.com";
 
+// Step 1: Get All Project Info
+exports.getAllProjectInfo = functions.https.onRequest(async (req, res) => {
   try {
-    const deployResponse = await axios.post(
-      "https://api.vercel.com/v13/deployments",
-      {
-        name: "cloaker",
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${VERCEL_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        params: {
-          projectId: VERCEL_PROJECT_ID,
-        },
-      }
-    );
-
-    const deploymentId = deployResponse.data.id;
-
-    const aliasResponse = await axios.post(
-      `https://api.vercel.com/v2/deployments/${deploymentId}/aliases`,
-      { domain: customDomain },
-      {
-        headers: {
-          Authorization: `Bearer ${VERCEL_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    res.status(200).send({
-      success: true,
-      deploymentUrl: aliasResponse.data.url,
-      customDomain,
+    const response = await axios.get(`${VERCEL_BASE_URL}/v9/projects`, {
+      headers,
     });
+    res.status(200).send(response.data);
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).send({ success: false, error: error.message });
+    res.status(500).send({ error: error.response?.data || error.message });
+  }
+});
+
+// Step 2: Get All Deployment Details
+exports.getAllDeploymentDetails = functions.https.onRequest(async (req, res) => {
+  try {
+    const response = await axios.get(`${VERCEL_BASE_URL}/v6/deployments`, {
+      headers,
+    });
+    res.status(200).send(response.data);
+  } catch (error) {
+    res.status(500).send({ error: error.response?.data || error.message });
+  }
+});
+
+// Step 3: Generate New Domains
+exports.createDomain = functions.https.onRequest(async (req, res) => {
+  const domainName = req.body.name; 
+  if (!domainName) {
+    return res.status(400).send({ error: "Domain name is required" });
+  }
+  try {
+    const response = await axios.post(
+      `${VERCEL_BASE_URL}/v9/projects/cloaker/domains`,
+      { name: domainName },
+      { headers }
+    );
+    res.status(201).send(response.data);
+  } catch (error) {
+    res.status(500).send({ error: error.response?.data || error.message });
+  }
+});
+
+// Step 4: Delete Previous Domains
+exports.deleteDomain = functions.https.onRequest(async (req, res) => {
+  const projectId = "prj_axRVh19ZXb6J2V1cTxIRHpSGSF0E";
+  const domainName = req.body.name;
+  if (!domainName) {
+    return res.status(400).send({ error: "Domain name is required" });
+  }
+  try {
+    const response = await axios.delete(
+      `${VERCEL_BASE_URL}/v9/projects/${projectId}/domains/${domainName}`,
+      { headers }
+    );
+    res.status(200).send({ message: "Domain deleted successfully", data: response.data });
+  } catch (error) {
+    res.status(500).send({ error: error.response?.data || error.message });
+  }
+});
+
+// Step 5: Get All Existing Domains
+exports.getAllDomains = functions.https.onRequest(async (req, res) => {
+  const projectId = "prj_axRVh19ZXb6J2V1cTxIRHpSGSF0E";
+  const teamId = "team_4GQzPdZT7ker0Ylkm901Z7aN";
+  try {
+    const response = await axios.get(
+      `${VERCEL_BASE_URL}/v9/projects/${projectId}/domains?teamId=${teamId}`,
+      { headers }
+    );
+    res.status(200).send(response.data);
+  } catch (error) {
+    res.status(500).send({ error: error.response?.data || error.message });
   }
 });
